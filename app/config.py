@@ -8,6 +8,15 @@ from pathlib import Path
 
 DEFAULT_CONFIG_PATH = "/config/config.yaml"
 DEFAULT_TOKENS_PATH = "/config/tokens.json"
+DEFAULT_STATE_PATH = "/config/state.json"
+
+
+def resolve_paths(config_path: str) -> tuple[str, str]:
+    """Resolve tokens and state paths relative to the config file when defaults aren't usable."""
+    config_dir = str(Path(config_path).parent.resolve())
+    tokens_path = os.environ.get("TOKENS_PATH", str(Path(config_dir) / "tokens.json"))
+    state_path = os.environ.get("STATE_PATH", str(Path(config_dir) / "state.json"))
+    return tokens_path, state_path
 
 
 def load_config(path: str = None) -> dict:

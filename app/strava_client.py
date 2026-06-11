@@ -7,8 +7,6 @@ from pathlib import Path
 
 import requests
 
-from app.config import DEFAULT_TOKENS_PATH
-
 
 STRAVA_AUTH_URL = "https://www.strava.com/oauth/authorize"
 STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
@@ -16,10 +14,10 @@ STRAVA_API_BASE = "https://www.strava.com/api/v3"
 
 
 class StravaClient:
-    def __init__(self, client_id: str, client_secret: str, tokens_path: str = None):
+    def __init__(self, client_id: str, client_secret: str, tokens_path: str = "tokens.json"):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.tokens_path = tokens_path or os.environ.get("TOKENS_PATH", DEFAULT_TOKENS_PATH)
+        self.tokens_path = tokens_path
         self.access_token = None
         self.refresh_token = None
         self.expires_at = 0

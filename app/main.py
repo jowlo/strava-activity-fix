@@ -10,39 +10,39 @@ from pathlib import Path
 
 import schedule
 
-from app.config import load_config
+from app.config import load_config, resolve_paths
 from app.strava_client import StravaClient
 from app.rules import evaluate_rule, get_actions, apply_actions
 from app.generator import generate_config
 from app.auth_server import wait_for_code
 
 
-STATE_PATH = os.environ.get("STATE_PATH", "/config/state.json")
+STATE_PATH = None  # resolved at runtime
 
 
-def load_state() -> dict:
+def load_state(state_path: str) -> dict:
     """Load persistent state (last check timestamp)."""
-    if Path(STATE_PATH).exists():
-        with open(STATE_PATH, "r") as f:
+    if Path(state_path).exists():
+        with open(state_path, "r") as f:
             return json.load(f)
     return {}
 
 
-def save_state(state: dict):
+def save_state(state: dict, state_path: str):
     """Save persistent state."""
-    Path(STATE_PATH).parent.mkdir(parents=True, exist_ok=True)
-    with open(STATE_PATH, "w") as f:
+    Path(state_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(state_path, "w") as f:
         json.dump(state, f, indent=2)
 
 
-def process_activities(client: StravaClient, config: dict):
+def process_activities(client: StravaClient, config: dict, state_path: str):
     """Fetch new activities and apply rules."""
     settings = config.get("settings", {})
     dry_run = settings.get("dry_run", False)
     lookback_hours = settings.get("lookback_hours", 24)
     rules = config.get("rules", [])
 
-    state = load_state()
+    state = load_state(state_path)
     last_check = state.get("last_check")
 
     # Determine the 'after' timestamp
@@ -67,7 +67,7 @@ def process_activities(client: StravaClient, config: dict):
     if not activities:
         print("  No new activities found.")
         state["last_check"] = now_ts
-        save_state(state)
+        save_state(state, state_path)
         return
 
     print(f"  Found {len(activities)} new activit{'y' if len(activities) == 1 else 'ies'}.")
@@ -91,7 +91,7 @@ def process_activities(client: StravaClient, config: dict):
                     print(f"    {prefix}{desc}")
 
     state["last_check"] = now_ts
-    save_state(state)
+    save_state(state, state_path)
 
 
 def do_auth(client: StravaClient):
@@ -128,6 +128,8 @@ def main():
         return
 
     config = load_config(args.config)
+    config_path = args.config or os.environ.get("CONFIG_PATH", "/config/config.yaml")
+    tokens_path, state_path = resolve_paths(config_path)
 
     if args.dry_run:
         config.setdefault("settings", {})["dry_run"] = True
@@ -136,6 +138,7 @@ def main():
     client = StravaClient(
         client_id=strava_cfg["client_id"],
         client_secret=strava_cfg["client_secret"],
+        tokens_path=tokens_path,
     )
 
     if args.auth:
@@ -147,7 +150,7 @@ def main():
         sys.exit(1)
 
     if args.once:
-        process_activities(client, config)
+        process_activities(client, config, state_path)
         return
 
     # Scheduled mode
@@ -157,9 +160,9 @@ def main():
     print(f"Rules loaded: {len(config.get('rules', []))}")
 
     # Run immediately on start
-    process_activities(client, config)
+    process_activities(client, config, state_path)
 
-    schedule.every(interval).minutes.do(process_activities, client, config)
+    schedule.every(interval).minutes.do(process_activities, client, config, state_path)
 
     while True:
         schedule.run_pending()
