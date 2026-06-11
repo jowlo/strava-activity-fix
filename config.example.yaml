@@ -13,6 +13,8 @@ settings:
   dry_run: true
   # How far back to look on first run (hours)
   lookback_hours: 24
+  # Log all activity fields to console (useful for rule development)
+  log_activity_fields: false
 
 rules:
   # Hide all Zwift activities

@@ -52,7 +52,8 @@ schedule:
 
 settings:
   dry_run: true              # true = log only, false = apply changes
-  lookback_hours: 24         # How far back on first run
+  lookback_hours: 24         # How far back on each container start
+  log_activity_fields: false # Log all activity fields (for rule development)
 
 rules:
   - name: "Rule name"

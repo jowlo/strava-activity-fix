@@ -35,21 +35,22 @@ def save_state(state: dict, state_path: str):
         json.dump(state, f, indent=2)
 
 
-def process_activities(client: StravaClient, config: dict, state_path: str):
+def process_activities(client: StravaClient, config: dict, state_path: str, is_startup: bool = False):
     """Fetch new activities and apply rules."""
     settings = config.get("settings", {})
     dry_run = settings.get("dry_run", False)
     lookback_hours = settings.get("lookback_hours", 24)
+    log_activity_fields = settings.get("log_activity_fields", False)
     rules = config.get("rules", [])
 
     state = load_state(state_path)
     last_check = state.get("last_check")
 
-    # Determine the 'after' timestamp
-    if last_check:
-        after = int(last_check)
-    else:
+    # On startup, always use lookback window; otherwise use last_check
+    if is_startup or not last_check:
         after = int((datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).timestamp())
+    else:
+        after = int(last_check)
 
     now_ts = int(datetime.now(timezone.utc).timestamp())
 
@@ -79,6 +80,12 @@ def process_activities(client: StravaClient, config: dict, state_path: str):
         except Exception as e:
             print(f"  ERROR fetching activity {activity['id']}: {e}")
             continue
+
+        if log_activity_fields:
+            print(f"\n  --- Activity fields (id={full_activity['id']}, name='{full_activity.get('name')}') ---")
+            for key, value in sorted(full_activity.items()):
+                print(f"    {key}: {value!r}")
+            print("  ---")
 
         for rule in rules:
             if evaluate_rule(full_activity, rule):
@@ -150,7 +157,7 @@ def main():
         sys.exit(1)
 
     if args.once:
-        process_activities(client, config, state_path)
+        process_activities(client, config, state_path, is_startup=True)
         return
 
     # Scheduled mode
@@ -159,8 +166,8 @@ def main():
     print(f"Dry run: {config.get('settings', {}).get('dry_run', False)}")
     print(f"Rules loaded: {len(config.get('rules', []))}")
 
-    # Run immediately on start
-    process_activities(client, config, state_path)
+    # Run immediately on start with lookback
+    process_activities(client, config, state_path, is_startup=True)
 
     schedule.every(interval).minutes.do(process_activities, client, config, state_path)
 

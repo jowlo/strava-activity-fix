@@ -14,6 +14,7 @@ EXAMPLE_CONFIG = {
     "settings": {
         "dry_run": True,
         "lookback_hours": 24,
+        "log_activity_fields": False,
     },
     "rules": [
         {
