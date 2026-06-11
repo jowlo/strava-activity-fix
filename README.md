@@ -6,13 +6,13 @@ Self-hosted tool to automatically hide, mute, modify, or delete Strava activitie
 
 ```bash
 # 1. Generate config
-python -m app.main --generate-config ./config/config.yaml
+uv run strava-activity-hide --generate-config ./config/config.yaml
 
 # 2. Edit config with your Strava API credentials and rules
 #    Get credentials at https://www.strava.com/settings/api
 
 # 3. Authenticate (one-time)
-python -m app.main --config ./config/config.yaml --auth
+uv run strava-activity-hide --config ./config/config.yaml --auth
 
 # 4. Run with Docker
 docker compose up -d
@@ -155,7 +155,7 @@ Nested fields are supported with dot notation: `map.summary_polyline`.
 ## CLI Reference
 
 ```
-python -m app.main [OPTIONS]
+uv run strava-activity-hide [OPTIONS]
 
 Options:
   --generate-config PATH   Generate example config YAML

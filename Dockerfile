@@ -1,11 +1,14 @@
 FROM python:3.12-slim
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 
 COPY app/ ./app/
+RUN uv sync --frozen --no-dev
 
 VOLUME /config
 
@@ -13,4 +16,4 @@ ENV CONFIG_PATH=/config/config.yaml
 ENV TOKENS_PATH=/config/tokens.json
 ENV STATE_PATH=/config/state.json
 
-ENTRYPOINT ["python", "-m", "app.main"]
+ENTRYPOINT ["uv", "run", "strava-activity-hide"]
