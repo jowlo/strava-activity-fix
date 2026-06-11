@@ -1,0 +1,14 @@
+services:
+  strava-activity-hide:
+    build: .
+    container_name: strava-activity-hide
+    restart: unless-stopped
+    volumes:
+      - ./config:/config
+    ports:
+      # Only needed during initial OAuth authentication
+      - "8000:8000"
+    environment:
+      - CONFIG_PATH=/config/config.yaml
+      - TOKENS_PATH=/config/tokens.json
+      - STATE_PATH=/config/state.json
