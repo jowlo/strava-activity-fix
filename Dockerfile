@@ -15,5 +15,6 @@ VOLUME /config
 ENV CONFIG_PATH=/config/config.yaml
 ENV TOKENS_PATH=/config/tokens.json
 ENV STATE_PATH=/config/state.json
+ENV PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["uv", "run", "strava-activity-hide"]
