@@ -52,6 +52,7 @@ class StravaClient:
             f"{STRAVA_AUTH_URL}?client_id={self.client_id}"
             f"&response_type=code&redirect_uri={redirect_uri}"
             f"&scope=activity:read_all,activity:write"
+            f"&approval_prompt=force"
         )
 
     def exchange_code(self, code: str):
