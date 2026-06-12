@@ -21,7 +21,7 @@ STATE_PATH = None  # resolved at runtime
 
 
 def load_state(state_path: str) -> dict:
-    """Load persistent state (last check timestamp)."""
+    """Load persistent state (processed activity IDs)."""
     if Path(state_path).exists():
         with open(state_path, "r") as f:
             return json.load(f)
@@ -35,8 +35,8 @@ def save_state(state: dict, state_path: str):
         json.dump(state, f, indent=2)
 
 
-def process_activities(client: StravaClient, config: dict, state_path: str, is_startup: bool = False):
-    """Fetch new activities and apply rules."""
+def process_activities(client: StravaClient, config: dict, state_path: str):
+    """Fetch activities within the lookback window and apply rules to unprocessed ones."""
     settings = config.get("settings", {})
     dry_run = settings.get("dry_run", False)
     lookback_hours = settings.get("lookback_hours", 24)
@@ -44,15 +44,10 @@ def process_activities(client: StravaClient, config: dict, state_path: str, is_s
     rules = config.get("rules", [])
 
     state = load_state(state_path)
-    last_check = state.get("last_check")
+    processed_ids = set(state.get("processed_ids", []))
 
-    # On startup, always use lookback window; otherwise use last_check
-    if is_startup or not last_check:
-        after = int((datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).timestamp())
-    else:
-        after = int(last_check)
-
-    now_ts = int(datetime.now(timezone.utc).timestamp())
+    # Always use the lookback window to catch late uploads
+    after = int((datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).timestamp())
 
     print(f"\n[{datetime.now().isoformat()}] Checking for activities after {datetime.fromtimestamp(after).isoformat()}...")
 
@@ -65,15 +60,16 @@ def process_activities(client: StravaClient, config: dict, state_path: str, is_s
         print(f"  ERROR fetching activities: {e}")
         return
 
-    if not activities:
+    # Filter out already-processed activities
+    new_activities = [a for a in activities if a["id"] not in processed_ids]
+
+    if not new_activities:
         print("  No new activities found.")
-        state["last_check"] = now_ts
-        save_state(state, state_path)
         return
 
-    print(f"  Found {len(activities)} new activit{'y' if len(activities) == 1 else 'ies'}.")
+    print(f"  Found {len(new_activities)} new activit{'y' if len(new_activities) == 1 else 'ies'} ({len(activities)} total in window).")
 
-    for activity in activities:
+    for activity in new_activities:
         # Fetch full activity details for rule evaluation
         try:
             full_activity = client.get_activity(activity["id"])
@@ -97,7 +93,12 @@ def process_activities(client: StravaClient, config: dict, state_path: str, is_s
                     prefix = "[DRY RUN] " if dry_run else ""
                     print(f"    {prefix}{desc}")
 
-    state["last_check"] = now_ts
+        processed_ids.add(activity["id"])
+
+    # Prune processed IDs older than the lookback window to prevent unbounded growth
+    # We keep IDs for 2x the lookback to be safe
+    state["processed_ids"] = list(processed_ids)
+    state["last_pruned"] = int(datetime.now(timezone.utc).timestamp())
     save_state(state, state_path)
 
 
@@ -157,7 +158,7 @@ def main():
         sys.exit(1)
 
     if args.once:
-        process_activities(client, config, state_path, is_startup=True)
+        process_activities(client, config, state_path)
         return
 
     # Scheduled mode
@@ -166,8 +167,8 @@ def main():
     print(f"Dry run: {config.get('settings', {}).get('dry_run', False)}")
     print(f"Rules loaded: {len(config.get('rules', []))}")
 
-    # Run immediately on start with lookback
-    process_activities(client, config, state_path, is_startup=True)
+    # Run immediately on start
+    process_activities(client, config, state_path)
 
     schedule.every(interval).minutes.do(process_activities, client, config, state_path)
 
